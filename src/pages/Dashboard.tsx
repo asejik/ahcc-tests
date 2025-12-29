@@ -241,7 +241,12 @@ export const Dashboard = () => {
                             <tr key={code.id} className="hover:bg-white/5">
                                 <td className="p-5 font-mono text-lg font-bold text-white tracking-wider flex items-center gap-2">
                                     {code.code}
-                                    {code.usesLeft === -1 && <ShieldAlert className="w-4 h-4 text-amber-400" title="Master Code" />}
+                                    {/* FIX: Wrapped title in span */}
+                                    {code.usesLeft === -1 && (
+                                      <span title="Master Code">
+                                        <ShieldAlert className="w-4 h-4 text-amber-400" />
+                                      </span>
+                                    )}
                                 </td>
                                 <td className="p-5">
                                     <span className={`px-2 py-1 rounded text-xs border ${code.testType === 'All' ? 'bg-amber-500/20 text-amber-400 border-amber-500/50' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>
