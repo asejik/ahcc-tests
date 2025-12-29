@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'; // Import useRef
+import { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAssessmentStore } from '../store/assessmentStore';
@@ -15,28 +15,29 @@ export const Results = () => {
   const { answers, userInfo, resetAssessment } = useAssessmentStore();
   const [result, setResult] = useState<TestResult | null>(null);
 
-  // AI State
   const [aiAnalysis, setAiAnalysis] = useState<string>("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-
-  // PREVENT DOUBLE SUBMISSION LOCK
   const hasSaved = useRef(false);
 
   useEffect(() => {
     const processResults = async () => {
-      // Check if we have data AND if we haven't saved yet
       if (Object.keys(answers).length > 0 && userInfo && !hasSaved.current) {
 
-        // 1. Mark as saved IMMEDIATELY to block duplicate calls
         hasSaved.current = true;
 
-        // 2. Calculate Standard Math
-        const calculated = calculateAssessmentResult(answers);
+        // 1. Format Answers (Handle objects vs strings)
+        const formattedAnswers = Object.entries(answers).reduce((acc, [key, val]) => {
+          // @ts-ignore
+          const value = typeof val === 'object' && val?.value ? val.value : val;
+          return { ...acc, [Number(key)]: value as string };
+        }, {} as Record<number, string>);
+
+        // 2. Calculate
+        const calculated = calculateAssessmentResult(formattedAnswers);
         setResult(calculated);
 
-        // 3. Trigger AI Analysis
+        // 3. AI Analysis
         setIsAnalyzing(true);
-        // Fallback name if undefined
         const safeName = userInfo.name || "Client";
 
         const analysisText = await getPersonalityAnalysis(
@@ -49,17 +50,16 @@ export const Results = () => {
         setIsAnalyzing(false);
 
         // 4. Save to Firebase
-        const finalResult = {
+        const finalResult: any = {
           ...calculated,
           analysis: analysisText,
-          type: "Temperament" // Explicitly tag this as Temperament
+          type: "Temperament"
         };
 
         try {
             await saveAssessment(userInfo, finalResult);
         } catch (err) {
             console.error("Save failed", err);
-            // Optional: hasSaved.current = false; // allow retry if failed? Usually better to just show error.
         }
       }
     };
@@ -131,7 +131,8 @@ export const Results = () => {
               <div>
                 <h4 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider mb-3">Core Strengths</h4>
                 <ul className="space-y-2">
-                  {primaryProfile?.strengths.map(s => (
+                  {/* FIX: Explicitly typed 's' as string */}
+                  {primaryProfile?.strengths.map((s: string) => (
                     <li key={s} className="flex items-start text-slate-300 text-sm">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 mr-2 flex-shrink-0"/>
                       {s}
@@ -142,7 +143,8 @@ export const Results = () => {
               <div>
                 <h4 className="text-sm font-semibold text-rose-400 uppercase tracking-wider mb-3">Growth Areas</h4>
                 <ul className="space-y-2">
-                  {primaryProfile?.growthAreas.map(g => (
+                  {/* FIX: Explicitly typed 'g' as string */}
+                  {primaryProfile?.growthAreas.map((g: string) => (
                     <li key={g} className="flex items-start text-slate-300 text-sm">
                       <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 mr-2 flex-shrink-0"/>
                       {g}
