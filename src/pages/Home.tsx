@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAssessmentStore } from '../store/assessmentStore';
-import { User, Activity, Brain, Heart } from 'lucide-react';
-import { HeartHandshake } from 'lucide-react'; // Or reuse Heart
+import { User, Activity, Brain, Heart, HeartHandshake, Scale } from 'lucide-react';
+
 
 export const Home = () => {
   const navigate = useNavigate();
@@ -127,6 +127,19 @@ export const Home = () => {
             <div>
               <h3 className="text-lg font-bold text-white">5 Love Languages</h3>
               <p className="text-sm text-slate-400 mt-1">Identify how you best give and receive love.</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleStart('/conflict-style')}
+            className="glass-panel p-6 rounded-xl border border-orange-500/30 hover:border-orange-500/80 transition-all group text-left flex items-start gap-4"
+          >
+            <div className="p-3 bg-orange-500/20 rounded-lg text-orange-400 group-hover:bg-orange-500 group-hover:text-white transition-colors">
+              <Scale className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">Conflict Resolution</h3>
+              <p className="text-sm text-slate-400 mt-1">Identify how you manage disagreements and find solutions.</p>
             </div>
           </button>
 

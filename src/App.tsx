@@ -7,6 +7,7 @@ import { Dashboard } from './pages/Dashboard';
 import { useAuth } from './hooks/useAuth';
 import { AttachmentTest } from './pages/AttachmentTest';
 import { LoveLanguageTest } from './pages/LoveLanguageTest';
+import { ConflictStyleTest } from './pages/ConflictStyleTest';
 
 // ... ProtectedRoute component stays the same ...
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -27,6 +28,7 @@ function App() {
           <Route path="/big-five" element={<BigFiveTest />} />
           <Route path="/attachment" element={<AttachmentTest />} />
           <Route path="/love-language" element={<LoveLanguageTest />} />
+          <Route path="/conflict-style" element={<ConflictStyleTest />} />
 
           {/* Admin Routes */}
           <Route path="/login" element={<Login />} />

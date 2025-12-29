@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react'; // Import useRef
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAssessmentStore } from '../store/assessmentStore';
@@ -14,25 +14,33 @@ export const Results = () => {
   const navigate = useNavigate();
   const { answers, userInfo, resetAssessment } = useAssessmentStore();
   const [result, setResult] = useState<TestResult | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
 
   // AI State
   const [aiAnalysis, setAiAnalysis] = useState<string>("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  // PREVENT DOUBLE SUBMISSION LOCK
+  const hasSaved = useRef(false);
+
   useEffect(() => {
     const processResults = async () => {
-      // SECURITY CHECK: Ensure we have answers, user info, and haven't already processed
-      if (Object.keys(answers).length > 0 && !result && userInfo) {
+      // Check if we have data AND if we haven't saved yet
+      if (Object.keys(answers).length > 0 && userInfo && !hasSaved.current) {
 
-        // 1. Calculate Standard Math (Instant)
+        // 1. Mark as saved IMMEDIATELY to block duplicate calls
+        hasSaved.current = true;
+
+        // 2. Calculate Standard Math
         const calculated = calculateAssessmentResult(answers);
         setResult(calculated);
 
-        // 2. Trigger AI Analysis (Async)
+        // 3. Trigger AI Analysis
         setIsAnalyzing(true);
+        // Fallback name if undefined
+        const safeName = userInfo.name || "Client";
+
         const analysisText = await getPersonalityAnalysis(
-          userInfo.name,
+          safeName,
           calculated.scores,
           calculated.primary,
           calculated.secondary
@@ -40,27 +48,27 @@ export const Results = () => {
         setAiAnalysis(analysisText);
         setIsAnalyzing(false);
 
-        // 3. Save to Firebase (Includes AI Analysis)
-        if (!isSaving) {
-          setIsSaving(true);
-          const finalResult = {
-            ...calculated,
-            analysis: analysisText,
-            type: "Temperament" // Explicitly tag this as Temperament
-          };
-          await saveAssessment(userInfo, finalResult);
-          setIsSaving(false);
+        // 4. Save to Firebase
+        const finalResult = {
+          ...calculated,
+          analysis: analysisText,
+          type: "Temperament" // Explicitly tag this as Temperament
+        };
+
+        try {
+            await saveAssessment(userInfo, finalResult);
+        } catch (err) {
+            console.error("Save failed", err);
+            // Optional: hasSaved.current = false; // allow retry if failed? Usually better to just show error.
         }
       }
     };
 
     processResults();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [answers, userInfo]);
 
   if (!result || !userInfo) return null;
 
-  // Type assertion to ensure typescript knows these keys exist in the data file
   const primaryProfile = TEMPERAMENT_PROFILES[result.primary as keyof typeof TEMPERAMENT_PROFILES];
   const secondaryProfile = TEMPERAMENT_PROFILES[result.secondary as keyof typeof TEMPERAMENT_PROFILES];
 
@@ -102,7 +110,7 @@ export const Results = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-        {/* Left Column: The Big Result Cards */}
+        {/* Left Column: Result Cards */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -157,7 +165,7 @@ export const Results = () => {
           </div>
         </motion.div>
 
-        {/* Right Column: The Charts & Actions */}
+        {/* Right Column: Charts & Actions */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -168,7 +176,7 @@ export const Results = () => {
             <h3 className="text-lg font-medium text-white mb-6">Score Breakdown</h3>
             <div className="space-y-4">
               {Object.entries(result.scores).map(([type, score]) => {
-                const percentage = (score / 40) * 100; // Assuming 40 is roughly max score for charts
+                const percentage = (score / 40) * 100;
                 const isDominant = type === result.primary || type === result.secondary;
 
                 return (
@@ -200,11 +208,9 @@ export const Results = () => {
               Save PDF
             </Button>
 
-            {/* RETURN TO HOME BUTTON */}
             <Button
                 className="w-full bg-indigo-600 hover:bg-indigo-500 text-white"
                 onClick={() => {
-                    // Optional: You can choose to reset here or keep state
                     resetAssessment();
                     navigate('/');
                 }}
