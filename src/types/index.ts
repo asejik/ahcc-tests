@@ -24,4 +24,17 @@ export interface TestResult {
   scores: Record<TemperamentType, number>;
   isBlend: boolean; // True if primary and secondary scores are equal
   timestamp: Date;
+  analysis?: string;
+}
+
+export interface AssessmentRecord {
+  id: string;
+  userName: string;
+  userEmail: string;
+  primary: TemperamentType;
+  secondary: TemperamentType;
+  isBlend: boolean;
+  date: any; // Firestore Timestamp
+  scores: Record<TemperamentType, number>;
+  analysis?: string;
 }

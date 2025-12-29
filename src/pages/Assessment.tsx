@@ -7,6 +7,7 @@ import { ProgressBar } from '../components/ui/ProgressBar';
 import { TEST_QUESTIONS } from '../lib/data';
 import { Button } from '../components/ui/Button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Results } from './Results';
 
 export const Assessment = () => {
   const {
@@ -38,13 +39,8 @@ export const Assessment = () => {
     );
   }
 
-  // If the test is finished, show a placeholder (for now)
   if (isFinished) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-white">
-        <h1 className="text-3xl font-serif">Assessment Complete. Generating Report...</h1>
-      </div>
-    );
+    return <Results />;
   }
 
   return (
