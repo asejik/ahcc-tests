@@ -4,8 +4,9 @@ import { collection, query, orderBy, getDocs, deleteDoc, doc } from 'firebase/fi
 import { auth, db } from '../lib/firebase';
 import { TEMPERAMENT_PROFILES } from '../lib/data';
 import { generateBlendDescription } from '../lib/logic';
+import { createAccessCode } from '../lib/codeService';
 import { Button } from '../components/ui/Button';
-import { Search, LogOut, Users, Calendar, Trash2, X, Eye, Filter, Sparkles } from 'lucide-react';
+import { Search, LogOut, Users, Calendar, Trash2, X, Eye, Filter, Sparkles, Key, Copy, Check, ShieldAlert } from 'lucide-react';
 import type { AssessmentRecord, TemperamentType } from '../types';
 
 export const Dashboard = () => {
@@ -16,23 +17,38 @@ export const Dashboard = () => {
   const [dateFilter, setDateFilter] = useState<'all' | '7days' | '30days'>('all');
   const [selectedRecord, setSelectedRecord] = useState<AssessmentRecord | null>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const q = query(collection(db, "assessments"), orderBy("date", "desc"));
-        const querySnapshot = await getDocs(q);
-        const data = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as AssessmentRecord[];
+  // CODES STATE
+  const [activeTab, setActiveTab] = useState<'results' | 'codes'>('results');
+  const [codes, setCodes] = useState<any[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
 
-        setAssessments(data);
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // GENERATOR STATE
+  const [newCodeType, setNewCodeType] = useState('Temperament');
+  const [newCodeNote, setNewCodeNote] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // 1. Fetch Data
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // Fetch Assessments
+      const qAssessments = query(collection(db, "assessments"), orderBy("date", "desc"));
+      const snapAssessments = await getDocs(qAssessments);
+      setAssessments(snapAssessments.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AssessmentRecord[]);
+
+      // Fetch Codes
+      const qCodes = query(collection(db, "access_codes"), orderBy("createdAt", "desc"));
+      const snapCodes = await getDocs(qCodes);
+      setCodes(snapCodes.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, []);
 
@@ -46,6 +62,38 @@ export const Dashboard = () => {
         alert("Failed to delete record");
       }
     }
+  };
+
+  const handleDeleteCode = async (id: string) => {
+    if (window.confirm('Revoke this access code?')) {
+        await deleteDoc(doc(db, "access_codes", id));
+        setCodes(prev => prev.filter(c => c.id !== id));
+    }
+  }
+
+  const handleGenerateCode = async () => {
+    setIsGenerating(true);
+    try {
+        // If "MASTER" is selected, we pass -1 for uses and 'All' for type
+        if (newCodeType === 'MASTER') {
+            await createAccessCode('All', newCodeNote || 'Admin Master Code', -1);
+        } else {
+            await createAccessCode(newCodeType, newCodeNote, 2);
+        }
+
+        setNewCodeNote('');
+        fetchData();
+    } catch (e) {
+        alert("Error generating code");
+    } finally {
+        setIsGenerating(false);
+    }
+  };
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const filteredData = assessments.filter(item => {
@@ -67,7 +115,6 @@ export const Dashboard = () => {
     return matchesSearch && matchesDate;
   });
 
-  // 1. TIMESTAMP FIX: Added Hour/Minute
   const formatDate = (timestamp: any) => {
     if (!timestamp) return 'N/A';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -80,8 +127,6 @@ export const Dashboard = () => {
     }).format(date);
   };
 
-  // 2. TYPE LABEL FIX: Smart Inference
-  // If the 'type' field is missing or generic, we guess based on the 'primary' result
   const getRecordType = (record: AssessmentRecord) => {
     if (record.type && record.type !== 'Temperament Test') return record.type;
 
@@ -96,17 +141,152 @@ export const Dashboard = () => {
 
   return (
     <div className="min-h-screen p-6 md:p-10 max-w-7xl mx-auto relative">
+
+      {/* Header */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
         <div>
           <h1 className="text-3xl font-serif font-bold text-white">Therapist Dashboard</h1>
           <p className="text-slate-400">Anchor of Hope Counselling</p>
         </div>
-        <Button variant="secondary" size="sm" onClick={() => signOut(auth)}>
-          <LogOut className="w-4 h-4 mr-2" /> Sign Out
-        </Button>
+
+        <div className="flex gap-4">
+             {/* NAVIGATION TABS */}
+             <div className="flex bg-slate-900/50 rounded-lg p-1 border border-slate-700">
+                <button
+                    onClick={() => setActiveTab('results')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'results' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                    Results
+                </button>
+                <button
+                    onClick={() => setActiveTab('codes')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'codes' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                    Access Codes
+                </button>
+             </div>
+
+            <Button variant="secondary" size="sm" onClick={() => signOut(auth)}>
+              <LogOut className="w-4 h-4 mr-2" /> Sign Out
+            </Button>
+        </div>
       </header>
 
-      {/* Stats Cards */}
+      {/* --- ACCESS CODES TAB --- */}
+      {activeTab === 'codes' ? (
+         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Generator Card */}
+            <div className="glass-panel p-8 rounded-2xl border-l-4 border-emerald-500">
+                <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                    <Key className="w-5 h-5 text-emerald-400" />
+                    Generate New Access Code
+                </h2>
+                <div className="flex flex-col md:flex-row gap-4 items-end">
+                    <div className="flex-1 w-full">
+                        <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Assessment Type</label>
+                        <select
+                            value={newCodeType}
+                            onChange={(e) => setNewCodeType(e.target.value)}
+                            className="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                        >
+                            <optgroup label="Single Use (2 Uses)">
+                                <option value="Temperament">Temperament</option>
+                                <option value="Big Five">Big Five Personality</option>
+                                <option value="Attachment">Attachment Style</option>
+                                <option value="Love Languages">Love Languages</option>
+                                <option value="Conflict Style">Conflict Resolution</option>
+                            </optgroup>
+                            <optgroup label="Admin Only">
+                                <option value="MASTER">⭐ MASTER (Unlimited All-Access)</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div className="flex-1 w-full">
+                        <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Client Note (Optional)</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. Admin Master Key"
+                            value={newCodeNote}
+                            onChange={(e) => setNewCodeNote(e.target.value)}
+                            className="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 px-4 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                        />
+                    </div>
+                    <Button
+                        onClick={handleGenerateCode}
+                        isLoading={isGenerating}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white min-w-[150px]"
+                    >
+                        Generate Code
+                    </Button>
+                </div>
+            </div>
+
+            {/* Codes List */}
+            <div className="glass-panel rounded-xl overflow-hidden">
+                {loading ? (
+                    <div className="p-10 text-center text-slate-400">Loading codes...</div>
+                ) : (
+                <table className="w-full text-left">
+                    <thead>
+                        <tr className="border-b border-slate-700 bg-white/5 text-slate-300 text-sm uppercase">
+                            <th className="p-5">Code</th>
+                            <th className="p-5">Type</th>
+                            <th className="p-5">Uses Left</th>
+                            <th className="p-5">Note</th>
+                            <th className="p-5 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 text-slate-300 text-sm">
+                        {codes.map((code) => (
+                            <tr key={code.id} className="hover:bg-white/5">
+                                <td className="p-5 font-mono text-lg font-bold text-white tracking-wider flex items-center gap-2">
+                                    {code.code}
+                                    {code.usesLeft === -1 && <ShieldAlert className="w-4 h-4 text-amber-400" title="Master Code" />}
+                                </td>
+                                <td className="p-5">
+                                    <span className={`px-2 py-1 rounded text-xs border ${code.testType === 'All' ? 'bg-amber-500/20 text-amber-400 border-amber-500/50' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>
+                                        {code.testType === 'All' ? 'ALL ACCESS' : code.testType}
+                                    </span>
+                                </td>
+                                <td className="p-5">
+                                    {code.usesLeft === -1 ? (
+                                        <span className="text-xl text-amber-400 font-bold">∞</span>
+                                    ) : (
+                                        <span className={`px-2 py-1 rounded text-xs font-bold ${code.usesLeft > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                                            {code.usesLeft} / 2
+                                        </span>
+                                    )}
+                                </td>
+                                <td className="p-5 text-slate-500">{code.note || '-'}</td>
+                                <td className="p-5 text-right flex justify-end gap-2">
+                                    <button
+                                        onClick={() => copyToClipboard(code.code, code.id)}
+                                        className="p-2 bg-indigo-500/10 text-indigo-400 rounded hover:bg-indigo-500/20 transition-colors"
+                                        title="Copy Code"
+                                    >
+                                        {copiedId === code.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteCode(code.id)}
+                                        className="p-2 hover:bg-rose-500/20 text-slate-500 hover:text-rose-500 rounded transition-colors"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                        {codes.length === 0 && (
+                            <tr><td colSpan={5} className="p-10 text-center text-slate-500">No active access codes.</td></tr>
+                        )}
+                    </tbody>
+                </table>
+                )}
+            </div>
+         </div>
+      ) : (
+
+      /* --- RESULTS TAB (Standard View) --- */
+      <>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         <div className="glass-panel p-6 rounded-xl border-l-4 border-indigo-500">
           <div className="flex items-center gap-4">
@@ -121,13 +301,11 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* Filter Bar */}
       <div className="flex flex-col md:flex-row gap-4 mb-6">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-3.5 h-5 w-5 text-slate-500" />
           <input
-            type="text" placeholder="Search clients..." value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            type="text" placeholder="Search clients..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
           />
         </div>
@@ -162,7 +340,7 @@ export const Dashboard = () => {
               </thead>
               <tbody className="divide-y divide-slate-800 text-slate-300 text-sm">
                 {filteredData.map((record) => {
-                  const type = getRecordType(record); // Use smart type inference
+                  const type = getRecordType(record);
                   return (
                   <tr key={record.id} onClick={() => setSelectedRecord(record)} className="hover:bg-white/5 transition-colors cursor-pointer group">
                     <td className="p-5">
@@ -170,7 +348,6 @@ export const Dashboard = () => {
                       <div className="text-slate-500 text-xs">{record.userEmail}</div>
                     </td>
                     <td className="p-5">
-                      {/* Dynamic Color Badges based on Test Type */}
                       <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded border ${
                         type === 'Big Five' ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' :
                         type === 'Attachment' ? 'border-rose-500/30 text-rose-400 bg-rose-500/10' :
@@ -209,6 +386,8 @@ export const Dashboard = () => {
           </div>
         )}
       </div>
+      </>
+      )}
 
       {/* DETAIL MODAL */}
       {selectedRecord && (
@@ -238,7 +417,9 @@ export const Dashboard = () => {
                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Sparkles className="w-4 h-4 text-indigo-400" /> Psychological Profile</h3>
                 {selectedRecord.analysis ? (
                   <div className="text-slate-300 text-sm leading-relaxed space-y-3 relative z-10">
-                    {selectedRecord.analysis.split('\n').map((paragraph, idx) => (paragraph.trim() && <p key={idx}>{paragraph}</p>))}
+                    {selectedRecord.analysis.split('\n').map((paragraph, idx) => (
+                      paragraph.trim() && <p key={idx}>{paragraph}</p>
+                    ))}
                   </div>
                 ) : (
                   (getRecordType(selectedRecord) === "Temperament") ? (
@@ -249,7 +430,7 @@ export const Dashboard = () => {
                 )}
               </div>
 
-              {/* RENDER LOGIC for different test types */}
+              {/* RENDER LOGIC */}
               {getRecordType(selectedRecord) === "Big Five" ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {Object.entries(selectedRecord.scores).map(([trait, score]) => (
@@ -259,7 +440,7 @@ export const Dashboard = () => {
                       </div>
                   ))}
                 </div>
-              ) : (getRecordType(selectedRecord) === "Attachment") ? (
+              ) : getRecordType(selectedRecord) === "Attachment" ? (
                 <div className="space-y-6">
                   <div className="bg-white/5 p-6 rounded-xl border border-rose-500/20">
                      <h4 className="text-rose-400 text-sm font-bold uppercase mb-4">Attachment Breakdown</h4>
@@ -302,7 +483,6 @@ export const Dashboard = () => {
                   </div>
                 </div>
               ) : (
-                /* 3. EMPTY CARD FIX: Only show Strengths/Growth for TEMPERAMENT */
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {TEMPERAMENT_PROFILES[selectedRecord.primary as TemperamentType] && (
@@ -327,7 +507,6 @@ export const Dashboard = () => {
                     )}
                   </div>
 
-                  {/* Scores */}
                   <div className="pt-4 border-t border-white/10">
                       <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Raw Scores</h4>
                       <div className="flex gap-4">
