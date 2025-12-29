@@ -3,6 +3,18 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
 
+export async function getGenericAnalysis(prompt: string) {
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text();
+  } catch (error) {
+    console.error("Gemini Error:", error);
+    return "Analysis could not be generated at this time.";
+  }
+}
+
 export async function getPersonalityAnalysis(
   name: string,
   scores: Record<string, number>,

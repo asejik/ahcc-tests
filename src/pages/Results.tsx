@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useAssessmentStore } from '../store/assessmentStore';
 import { calculateAssessmentResult } from '../lib/logic';
 import { TEMPERAMENT_PROFILES } from '../lib/data';
 import { saveAssessment } from '../lib/services';
 import { getPersonalityAnalysis } from '../lib/gemini';
 import { Button } from '../components/ui/Button';
-import { RefreshCcw, Download, Loader2 } from 'lucide-react';
+import { RefreshCcw, Download, Loader2, Home } from 'lucide-react';
 import type { TestResult } from '../types';
 
 export const Results = () => {
+  const navigate = useNavigate();
   const { answers, userInfo, resetAssessment } = useAssessmentStore();
   const [result, setResult] = useState<TestResult | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -41,8 +43,11 @@ export const Results = () => {
         // 3. Save to Firebase (Includes AI Analysis)
         if (!isSaving) {
           setIsSaving(true);
-          // We combine the calculated result with the AI text
-          const finalResult = { ...calculated, analysis: analysisText };
+          const finalResult = {
+            ...calculated,
+            analysis: analysisText,
+            type: "Temperament" // Explicitly tag this as Temperament
+          };
           await saveAssessment(userInfo, finalResult);
           setIsSaving(false);
         }
@@ -55,8 +60,9 @@ export const Results = () => {
 
   if (!result || !userInfo) return null;
 
-  const primaryProfile = TEMPERAMENT_PROFILES[result.primary];
-  const secondaryProfile = TEMPERAMENT_PROFILES[result.secondary];
+  // Type assertion to ensure typescript knows these keys exist in the data file
+  const primaryProfile = TEMPERAMENT_PROFILES[result.primary as keyof typeof TEMPERAMENT_PROFILES];
+  const secondaryProfile = TEMPERAMENT_PROFILES[result.secondary as keyof typeof TEMPERAMENT_PROFILES];
 
   return (
     <div className="min-h-screen pt-20 pb-20 px-4 max-w-5xl mx-auto">
@@ -86,7 +92,6 @@ export const Results = () => {
               transition={{ duration: 0.8 }}
               className="text-xl text-slate-300 leading-relaxed space-y-4 font-light"
             >
-               {/* Split the AI response into paragraphs */}
                {aiAnalysis.split('\n').map((paragraph, idx) => (
                  paragraph.trim() && <p key={idx}>{paragraph}</p>
                ))}
@@ -111,14 +116,14 @@ export const Results = () => {
               {result.primary}
             </h2>
             <p className="text-slate-300 mb-6 leading-relaxed">
-              {primaryProfile.description}
+              {primaryProfile?.description}
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <h4 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider mb-3">Core Strengths</h4>
                 <ul className="space-y-2">
-                  {primaryProfile.strengths.map(s => (
+                  {primaryProfile?.strengths.map(s => (
                     <li key={s} className="flex items-start text-slate-300 text-sm">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 mr-2 flex-shrink-0"/>
                       {s}
@@ -129,7 +134,7 @@ export const Results = () => {
               <div>
                 <h4 className="text-sm font-semibold text-rose-400 uppercase tracking-wider mb-3">Growth Areas</h4>
                 <ul className="space-y-2">
-                  {primaryProfile.growthAreas.map(g => (
+                  {primaryProfile?.growthAreas.map(g => (
                     <li key={g} className="flex items-start text-slate-300 text-sm">
                       <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 mr-2 flex-shrink-0"/>
                       {g}
@@ -147,7 +152,7 @@ export const Results = () => {
               {result.secondary}
             </h2>
             <p className="text-slate-400 text-sm mb-4 leading-relaxed">
-              {secondaryProfile.description}
+              {secondaryProfile?.description}
             </p>
           </div>
         </motion.div>
@@ -163,7 +168,7 @@ export const Results = () => {
             <h3 className="text-lg font-medium text-white mb-6">Score Breakdown</h3>
             <div className="space-y-4">
               {Object.entries(result.scores).map(([type, score]) => {
-                const percentage = (score / 20) * 100;
+                const percentage = (score / 40) * 100; // Assuming 40 is roughly max score for charts
                 const isDominant = type === result.primary || type === result.secondary;
 
                 return (
@@ -188,12 +193,26 @@ export const Results = () => {
 
           <div className="glass-panel p-6 rounded-2xl text-center space-y-4">
             <p className="text-slate-400 text-sm">
-              Your results have been generated. Would you like to save a copy?
+              Your results have been generated.
             </p>
             <Button variant="outline" className="w-full" onClick={() => window.print()}>
               <Download className="mr-2 h-4 w-4" />
               Save PDF
             </Button>
+
+            {/* RETURN TO HOME BUTTON */}
+            <Button
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white"
+                onClick={() => {
+                    // Optional: You can choose to reset here or keep state
+                    resetAssessment();
+                    navigate('/');
+                }}
+            >
+                <Home className="mr-2 h-4 w-4" />
+                Return to Home
+            </Button>
+
             <Button variant="ghost" className="w-full text-slate-500 hover:text-rose-400" onClick={resetAssessment}>
               <RefreshCcw className="mr-2 h-4 w-4" />
               Start Over

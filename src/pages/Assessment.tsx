@@ -43,6 +43,18 @@ export const Assessment = () => {
     return <Results />;
   }
 
+  // AUTO-ADVANCE LOGIC
+  const handleOptionSelect = (option: any) => {
+    setAnswer(currentQuestion.id, option);
+
+    // If it's NOT the last question, auto-advance after a tiny delay
+    if (!isLastQuestion) {
+      setTimeout(() => {
+        nextQuestion();
+      }, 250); // 250ms delay for visual confirmation
+    }
+  };
+
   return (
     <div className="min-h-screen pt-24 pb-20 px-4 max-w-4xl mx-auto">
       {/* Header / Progress */}
@@ -59,7 +71,8 @@ export const Assessment = () => {
         <QuestionCard
           key={currentQuestion.id}
           question={currentQuestion}
-          onSelect={(option) => setAnswer(currentQuestion.id, option)}
+          // Use the new handleOptionSelect instead of direct setAnswer
+          onSelect={handleOptionSelect}
           selectedOption={answers[currentQuestion.id]}
         />
       </AnimatePresence>

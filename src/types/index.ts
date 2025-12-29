@@ -15,26 +15,24 @@ export interface TemperamentProfile {
   type: TemperamentType;
   strengths: string[];
   growthAreas: string[];
-  description: string; // The "atomic" text for blending
+  description: string;
 }
 
+// 1. We make TestResult flexible enough for both tests
 export interface TestResult {
-  primary: TemperamentType;
-  secondary: TemperamentType;
-  scores: Record<TemperamentType, number>;
-  isBlend: boolean; // True if primary and secondary scores are equal
-  timestamp: Date;
+  primary: TemperamentType | string; // Allows "Big Five Profile"
+  secondary: TemperamentType | string;
+  scores: Record<string, number>;    // Allows "Openness" (string) keys, not just TemperamentType
+  isBlend: boolean;
   analysis?: string;
+  type?: string;                     // "Temperament" or "Big Five"
+  levels?: Record<string, string>;   // "High", "Low" etc.
 }
 
-export interface AssessmentRecord {
+// 2. AssessmentRecord now INHERITS everything above (type, analysis, levels, etc.)
+export interface AssessmentRecord extends TestResult {
   id: string;
   userName: string;
   userEmail: string;
-  primary: TemperamentType;
-  secondary: TemperamentType;
-  isBlend: boolean;
   date: any; // Firestore Timestamp
-  scores: Record<TemperamentType, number>;
-  analysis?: string;
 }

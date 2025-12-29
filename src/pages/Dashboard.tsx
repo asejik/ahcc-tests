@@ -6,14 +6,14 @@ import { TEMPERAMENT_PROFILES } from '../lib/data';
 import { generateBlendDescription } from '../lib/logic';
 import { Button } from '../components/ui/Button';
 import { Search, LogOut, Users, Calendar, Trash2, X, Eye, Filter, Sparkles } from 'lucide-react';
-import type { AssessmentRecord } from '../types';
+import type { AssessmentRecord, TemperamentType } from '../types';
 
 export const Dashboard = () => {
   const [assessments, setAssessments] = useState<AssessmentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // New States
+  // States
   const [dateFilter, setDateFilter] = useState<'all' | '7days' | '30days'>('all');
   const [selectedRecord, setSelectedRecord] = useState<AssessmentRecord | null>(null);
 
@@ -23,7 +23,11 @@ export const Dashboard = () => {
       try {
         const q = query(collection(db, "assessments"), orderBy("date", "desc"));
         const querySnapshot = await getDocs(q);
-        const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AssessmentRecord[];
+        const data = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as AssessmentRecord[];
+
         setAssessments(data);
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -142,8 +146,8 @@ export const Dashboard = () => {
               <thead>
                 <tr className="border-b border-slate-700 bg-white/5 text-slate-300 text-sm uppercase tracking-wider">
                   <th className="p-5 font-medium">Client</th>
+                  <th className="p-5 font-medium">Type</th>
                   <th className="p-5 font-medium">Result</th>
-                  <th className="p-5 font-medium">Scores</th>
                   <th className="p-5 font-medium">Date</th>
                   <th className="p-5 font-medium text-right">Actions</th>
                 </tr>
@@ -162,23 +166,30 @@ export const Dashboard = () => {
                       <div className="text-slate-500 text-xs">{record.userEmail}</div>
                     </td>
                     <td className="p-5">
-                      <div className="flex items-center gap-2">
-                        <span className="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded text-xs font-bold">
-                          {record.primary}
-                        </span>
-                        <span className="text-slate-500">/</span>
-                        <span className="text-slate-400">{record.secondary}</span>
-                      </div>
-                      {record.isBlend && <span className="text-xs text-emerald-400 mt-1 block">Co-Dominant</span>}
+                      <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded border ${
+                        record.type === 'Big Five'
+                          ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10'
+                          : record.type === 'Attachment'
+                          ? 'border-rose-500/30 text-rose-400 bg-rose-500/10'
+                          : record.type === 'Love Languages'
+                          ? 'border-pink-500/30 text-pink-400 bg-pink-500/10'
+                          : 'border-indigo-500/30 text-indigo-400 bg-indigo-500/10'
+                      }`}>
+                        {record.type || 'Temperament'}
+                      </span>
                     </td>
                     <td className="p-5">
-                      <div className="flex gap-2 text-xs">
-                        {Object.entries(record.scores).map(([key, val]) => (
-                          <span key={key} className="bg-slate-800 px-1.5 py-0.5 rounded">
-                            {key.charAt(0)}:{val}
+                      {record.type && record.type !== 'Temperament' ? (
+                        <div className="text-xs text-slate-400">View Full Profile</div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded text-xs font-bold">
+                            {record.primary}
                           </span>
-                        ))}
-                      </div>
+                          <span className="text-slate-500">/</span>
+                          <span className="text-slate-400">{record.secondary}</span>
+                        </div>
+                      )}
                     </td>
                     <td className="p-5 text-slate-500 whitespace-nowrap">
                       <div className="flex items-center gap-2">
@@ -205,7 +216,7 @@ export const Dashboard = () => {
         )}
       </div>
 
-      {/* DETAIL MODAL (UPDATED FOR AI) */}
+      {/* DETAIL MODAL */}
       {selectedRecord && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedRecord(null)}>
           <div
@@ -221,11 +232,18 @@ export const Dashboard = () => {
 
             <div className="p-8">
               <div className="mb-8 border-b border-white/10 pb-6">
-                <h2 className="text-2xl font-serif font-bold text-white mb-1">{selectedRecord.userName}</h2>
-                <p className="text-slate-400 text-sm flex items-center gap-2">
-                  <Calendar className="w-3 h-3" />
-                  Taken on {formatDate(selectedRecord.date)}
-                </p>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h2 className="text-2xl font-serif font-bold text-white mb-1">{selectedRecord.userName}</h2>
+                    <p className="text-slate-400 text-sm flex items-center gap-2">
+                      <Calendar className="w-3 h-3" />
+                      Taken on {formatDate(selectedRecord.date)}
+                    </p>
+                  </div>
+                  <span className="bg-slate-800 text-slate-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                    {selectedRecord.type || "Temperament"}
+                  </span>
+                </div>
               </div>
 
               {/* AI Analysis Box */}
@@ -246,52 +264,145 @@ export const Dashboard = () => {
                     ))}
                   </div>
                 ) : (
-                  // Fallback for old records without AI data
-                  <p className="text-slate-300 text-sm leading-relaxed">
-                    {generateBlendDescription(selectedRecord.primary, selectedRecord.secondary, selectedRecord.isBlend)}
-                  </p>
+                  // Fallback: Only attempt blend description if it's Temperament
+                  (!selectedRecord.type || selectedRecord.type === "Temperament") ? (
+                     <p className="text-slate-300 text-sm leading-relaxed">
+                        {generateBlendDescription(
+                          selectedRecord.primary as TemperamentType,
+                          selectedRecord.secondary as TemperamentType,
+                          selectedRecord.isBlend
+                        )}
+                     </p>
+                  ) : (
+                    <p className="text-slate-500 italic text-sm">No analysis recorded.</p>
+                  )
                 )}
               </div>
 
-              {/* Detailed Breakdown */}
-              <div className="space-y-6">
+              {/* --- CONDITIONAL RENDER LOGIC --- */}
+
+              {selectedRecord.type === "Big Five" ? (
+                /* --- BIG FIVE LAYOUT --- */
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-white/5 p-4 rounded-xl">
-                    <h4 className="text-emerald-400 text-xs font-bold uppercase mb-3">Strengths</h4>
-                    <ul className="space-y-1">
-                      {TEMPERAMENT_PROFILES[selectedRecord.primary].strengths.map(s => (
-                        <li key={s} className="text-slate-300 text-xs flex items-start">
-                          <span className="w-1 h-1 bg-emerald-500 rounded-full mt-1.5 mr-2 flex-shrink-0" />
-                          {s}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="bg-white/5 p-4 rounded-xl">
-                    <h4 className="text-rose-400 text-xs font-bold uppercase mb-3">Growth Areas</h4>
-                    <ul className="space-y-1">
-                      {TEMPERAMENT_PROFILES[selectedRecord.primary].growthAreas.map(g => (
-                        <li key={g} className="text-slate-300 text-xs flex items-start">
-                          <span className="w-1 h-1 bg-rose-500 rounded-full mt-1.5 mr-2 flex-shrink-0" />
-                          {g}
-                        </li>
-                      ))}
-                    </ul>
+                  {Object.entries(selectedRecord.scores).map(([trait, score]) => {
+                    // @ts-ignore
+                    const level = selectedRecord.levels ? selectedRecord.levels[trait] : 'N/A';
+                    return (
+                      <div key={trait} className="bg-white/5 p-4 rounded-xl border border-white/5">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-white font-medium">{trait}</span>
+                          <span className="text-xs text-slate-400">{score} / 20</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-slate-800 rounded-full">
+                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(Number(score)/20)*100}%` }} />
+                          </div>
+                          <span className={`text-xs font-bold w-16 text-right ${
+                            level === 'High' ? 'text-emerald-400' :
+                            level === 'Moderate' ? 'text-amber-400' : 'text-slate-400'
+                          }`}>
+                            {level}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+              ) : selectedRecord.type === "Attachment" ? (
+                /* --- ATTACHMENT LAYOUT --- */
+                <div className="space-y-6">
+                  <div className="bg-white/5 p-6 rounded-xl border border-rose-500/20">
+                     <h4 className="text-rose-400 text-sm font-bold uppercase mb-4">Attachment Breakdown</h4>
+                     <div className="space-y-4">
+                       {Object.entries(selectedRecord.scores).map(([style, score]) => (
+                         <div key={style}>
+                           <div className="flex justify-between text-sm mb-1">
+                             <span className="text-white">{style}</span>
+                             <span className="text-slate-400">{score} / 30</span>
+                           </div>
+                           <div className="h-2 bg-slate-800 rounded-full">
+                             <div
+                               className={`h-full rounded-full ${style === selectedRecord.primary ? 'bg-rose-500' : 'bg-slate-600'}`}
+                               style={{ width: `${(Number(score) / 30) * 100}%` }}
+                             />
+                           </div>
+                         </div>
+                       ))}
+                     </div>
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-white/10">
-                   <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Raw Scores</h4>
-                   <div className="flex gap-4">
-                      {Object.entries(selectedRecord.scores).map(([type, score]) => (
-                        <div key={type} className="flex-1 bg-slate-900/50 p-2 rounded text-center">
-                          <div className="text-xs text-slate-500 uppercase">{type}</div>
-                          <div className="text-lg font-bold text-white">{score}</div>
-                        </div>
-                      ))}
-                   </div>
+              ) : selectedRecord.type === "Love Languages" ? (
+                /* --- LOVE LANGUAGES LAYOUT --- */
+                <div className="space-y-6">
+                  <div className="bg-white/5 p-6 rounded-xl border border-pink-500/20">
+                     <h4 className="text-pink-400 text-sm font-bold uppercase mb-4">Love Language Breakdown</h4>
+                     <div className="space-y-4">
+                       {Object.entries(selectedRecord.scores).map(([lang, score]) => (
+                         <div key={lang}>
+                           <div className="flex justify-between text-sm mb-1">
+                             <span className="text-white">{lang}</span>
+                             <span className="text-slate-400">{score} / 20</span>
+                           </div>
+                           <div className="h-2 bg-slate-800 rounded-full">
+                             <div
+                               className={`h-full rounded-full ${lang === selectedRecord.primary ? 'bg-pink-500' : 'bg-slate-600'}`}
+                               style={{ width: `${(Number(score) / 20) * 100}%` }}
+                             />
+                           </div>
+                         </div>
+                       ))}
+                     </div>
+                  </div>
                 </div>
-              </div>
+
+              ) : (
+                /* --- TEMPERAMENT LAYOUT --- */
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-white/5 p-4 rounded-xl">
+                      <h4 className="text-emerald-400 text-xs font-bold uppercase mb-3">Strengths</h4>
+                      {TEMPERAMENT_PROFILES[selectedRecord.primary as TemperamentType] && (
+                        <ul className="space-y-1">
+                          {TEMPERAMENT_PROFILES[selectedRecord.primary as TemperamentType].strengths.map((s: string) => (
+                            <li key={s} className="text-slate-300 text-xs flex items-start">
+                              <span className="w-1 h-1 bg-emerald-500 rounded-full mt-1.5 mr-2 flex-shrink-0" />
+                              {s}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div className="bg-white/5 p-4 rounded-xl">
+                      <h4 className="text-rose-400 text-xs font-bold uppercase mb-3">Growth Areas</h4>
+                      {TEMPERAMENT_PROFILES[selectedRecord.primary as TemperamentType] && (
+                        <ul className="space-y-1">
+                          {TEMPERAMENT_PROFILES[selectedRecord.primary as TemperamentType].growthAreas.map((g: string) => (
+                            <li key={g} className="text-slate-300 text-xs flex items-start">
+                              <span className="w-1 h-1 bg-rose-500 rounded-full mt-1.5 mr-2 flex-shrink-0" />
+                              {g}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-white/10">
+                      <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Raw Scores</h4>
+                      <div className="flex gap-4">
+                        {Object.entries(selectedRecord.scores).map(([type, score]) => (
+                          <div key={type} className="flex-1 bg-slate-900/50 p-2 rounded text-center">
+                            <div className="text-xs text-slate-500 uppercase">{type.slice(0,3)}</div>
+                            <div className="text-lg font-bold text-white">{score}</div>
+                          </div>
+                        ))}
+                      </div>
+                  </div>
+                </div>
+              )}
+              {/* --- END CONDITIONAL RENDER --- */}
 
             </div>
           </div>
